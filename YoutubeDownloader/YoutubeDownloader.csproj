@@ -71,12 +71,12 @@
     Condition="$(DownloadFFmpeg) AND !Exists('ffmpeg.exe') AND !Exists('ffmpeg')"
   >
     <Exec
-      Command="pwsh -ExecutionPolicy Bypass -File $(ProjectDir)/Download-FFmpeg.ps1 -Platform $(RuntimeIdentifier) -OutputPath $(ProjectDir)"
+      Command="C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -File $(ProjectDir)/Download-FFmpeg.ps1 -Platform $(RuntimeIdentifier) -OutputPath $(ProjectDir)"
       LogStandardErrorAsError="true"
       Condition="'$(RuntimeIdentifier)' != ''"
     />
     <Exec
-      Command="pwsh -ExecutionPolicy Bypass -File $(ProjectDir)/Download-FFmpeg.ps1 -OutputPath $(ProjectDir)"
+      Command="C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -File $(ProjectDir)/Download-FFmpeg.ps1 -OutputPath $(ProjectDir)"
       LogStandardErrorAsError="true"
       Condition="'$(RuntimeIdentifier)' == ''"
     />

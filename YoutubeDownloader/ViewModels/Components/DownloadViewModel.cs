@@ -97,7 +97,7 @@ public partial class DownloadViewModel : ViewModelBase
         try
         {
             // Navigate to the file in Windows Explorer
-            Process.Start("explorer", ["/select,", FilePath]);
+            ProcessExtensions.Start("explorer", ["/select,", FilePath]);
         }
         catch (Exception ex)
         {
@@ -117,7 +117,7 @@ public partial class DownloadViewModel : ViewModelBase
 
         try
         {
-            Process.StartShellExecute(FilePath);
+            ProcessExtensions.StartShellExecute(FilePath);
         }
         catch (Exception ex)
         {

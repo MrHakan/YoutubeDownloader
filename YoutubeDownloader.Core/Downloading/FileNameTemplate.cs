@@ -14,7 +14,7 @@ public static class FileNameTemplate
         Container container,
         string? number = null
     ) =>
-        Path.EscapeFileName(
+        PathExtensions.EscapeFileName(
             template
                 .Replace("$numc", number ?? "", StringComparison.Ordinal)
                 .Replace("$num", number is not null ? $"[{number}]" : "", StringComparison.Ordinal)

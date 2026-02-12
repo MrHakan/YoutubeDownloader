@@ -44,7 +44,9 @@ public partial class MainViewModel(
         settingsService.Save();
 
         if (await dialogManager.ShowDialogAsync(dialog) == true)
-            Process.StartShellExecute("https://tyrrrz.me/ukraine?source=youtubedownloader");
+            ProcessExtensions.StartShellExecute(
+                "https://tyrrrz.me/ukraine?source=youtubedownloader"
+            );
     }
 
     private async Task ShowDevelopmentBuildMessageAsync()
@@ -70,7 +72,7 @@ public partial class MainViewModel(
         );
 
         if (await dialogManager.ShowDialogAsync(dialog) == true)
-            Process.StartShellExecute(Program.ProjectReleasesUrl);
+            ProcessExtensions.StartShellExecute(Program.ProjectReleasesUrl);
     }
 
     private async Task ShowFFmpegMessageAsync()
@@ -92,7 +94,7 @@ public partial class MainViewModel(
         );
 
         if (await dialogManager.ShowDialogAsync(dialog) == true)
-            Process.StartShellExecute("https://ffmpeg.org/download.html");
+            ProcessExtensions.StartShellExecute("https://ffmpeg.org/download.html");
 
         if (Application.Current?.ApplicationLifetime?.TryShutdown(3) != true)
             Environment.Exit(3);

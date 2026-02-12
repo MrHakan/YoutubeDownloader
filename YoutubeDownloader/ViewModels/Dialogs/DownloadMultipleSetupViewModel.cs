@@ -87,10 +87,10 @@ public partial class DownloadMultipleSetupViewModel(
             if (settingsService.ShouldSkipExistingFiles && File.Exists(baseFilePath))
                 continue;
 
-            var filePath = Path.EnsureUniqueFilePath(baseFilePath);
+            var filePath = PathExtensions.EnsureUniqueFilePath(baseFilePath);
 
             // Download does not start immediately, so lock in the file path to avoid conflicts
-            Directory.CreateDirectoryForFile(filePath);
+            DirectoryExtensions.CreateDirectoryForFile(filePath);
             await File.WriteAllBytesAsync(filePath, []);
 
             downloads.Add(

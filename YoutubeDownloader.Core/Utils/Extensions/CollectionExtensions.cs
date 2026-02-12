@@ -4,12 +4,9 @@ namespace YoutubeDownloader.Core.Utils.Extensions;
 
 public static class CollectionExtensions
 {
-    extension<T>(ICollection<T> source)
+    public static void AddRange<T>(this ICollection<T> source, IEnumerable<T> items)
     {
-        public void AddRange(IEnumerable<T> items)
-        {
-            foreach (var i in items)
-                source.Add(i);
-        }
+        foreach (var i in items)
+            source.Add(i);
     }
 }

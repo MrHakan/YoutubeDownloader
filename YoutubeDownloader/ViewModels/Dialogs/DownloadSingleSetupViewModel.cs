@@ -67,7 +67,7 @@ public partial class DownloadSingleSetupViewModel(
             return;
 
         // Download does not start immediately, so lock in the file path to avoid conflicts
-        Directory.CreateDirectoryForFile(filePath);
+        DirectoryExtensions.CreateDirectoryForFile(filePath);
         await File.WriteAllBytesAsync(filePath, []);
 
         settingsService.LastContainer = container;
