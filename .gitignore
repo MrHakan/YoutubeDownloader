@@ -161,3 +161,10 @@ orleans.codegen.cs
 
 # Avalonia
 .avalonia-build-tasks
+
+# Local application state and protected authentication
+Settings.dat*
+auth.protected*
+queue.json*
+diagnostics.log*
+Data/

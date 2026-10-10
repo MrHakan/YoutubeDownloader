@@ -14,6 +14,8 @@ public partial class DashboardView : UserControl<DashboardViewModel>
 
         // Bind the event with the tunnel strategy to handle keys that take part in writing text
         QueryTextBox.AddHandler(KeyDownEvent, QueryTextBox_OnKeyDown, RoutingStrategies.Tunnel);
+        DragDrop.SetAllowDrop(QueryTextBox, true);
+        QueryTextBox.AddHandler(DragDrop.DropEvent, QueryTextBox_OnDrop);
     }
 
     private void UserControl_OnLoaded(object? sender, RoutedEventArgs args) => QueryTextBox.Focus();
@@ -33,5 +35,14 @@ public partial class DashboardView : UserControl<DashboardViewModel>
     {
         if (sender is IDataContextProvider { DataContext: DownloadViewModel dataContext })
             dataContext.CopyErrorMessageCommand.Execute(null);
+    }
+
+    private void QueryTextBox_OnDrop(object? sender, DragEventArgs args)
+    {
+        if (args.Data.GetText() is { } text)
+        {
+            DataContext.Query = text.Trim();
+            args.Handled = true;
+        }
     }
 }

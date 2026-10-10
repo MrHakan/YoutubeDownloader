@@ -10,7 +10,7 @@ public static class Program
 {
     private static Assembly Assembly { get; } = Assembly.GetExecutingAssembly();
 
-    public static string Name { get; } = Assembly.GetName().Name ?? "YoutubeDownloader";
+    public static string Name { get; } = "MrHakan YoutubeDownloader";
 
     public static Version Version { get; } = Assembly.GetName().Version ?? new Version(0, 0, 0);
 
@@ -18,7 +18,12 @@ public static class Program
 
     public static bool IsDevelopmentBuild { get; } = Version.Major is <= 0 or >= 999;
 
-    public static string ProjectUrl { get; } = "https://github.com/Tyrrrz/YoutubeDownloader";
+    public const string ProjectOwner = "MrHakan";
+
+    public const string ProjectRepository = "YoutubeDownloader";
+
+    public static string ProjectUrl { get; } =
+        $"https://github.com/{ProjectOwner}/{ProjectRepository}";
 
     public static string ProjectReleasesUrl { get; } = $"{ProjectUrl}/releases";
 

@@ -12,7 +12,7 @@ public class VideoQualityPreferenceToStringConverter : IValueConverter
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is VideoQualityPreference preference)
-            return preference.GetDisplayName();
+            return YoutubeDownloader.Services.Localization.Get(preference.GetDisplayName());
 
         return default(string);
     }

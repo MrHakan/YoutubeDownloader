@@ -6,20 +6,31 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using DialogHostAvalonia;
+using YoutubeDownloader.Services;
 using YoutubeDownloader.Utils.Extensions;
 
 namespace YoutubeDownloader.Framework;
 
-public class DialogManager : IDisposable
+public class DialogManager(SettingsService settings) : IDisposable
 {
     private readonly SemaphoreSlim _dialogLock = new(1, 1);
 
-    public async Task<T?> ShowDialogAsync<T>(DialogViewModelBase<T> dialog)
+    public async Task<T?> ShowDialogAsync<T>(
+        DialogViewModelBase<T> dialog,
+        CancellationToken cancellationToken = default
+    )
     {
-        await _dialogLock.WaitAsync();
+        var acquired = false;
         try
         {
+            await _dialogLock.WaitAsync(cancellationToken);
+            acquired = true;
+            using var cancellation = cancellationToken.Register(() =>
+                Dispatcher.UIThread.Post(() => dialog.CloseCommand.Execute(default(T)))
+            );
+            cancellationToken.ThrowIfCancellationRequested();
             await DialogHost.Show(
                 dialog,
                 // It's fine to await in a void method here because it's an event handler
@@ -39,11 +50,14 @@ public class DialogManager : IDisposable
                 }
             );
 
+            cancellationToken.ThrowIfCancellationRequested();
             return dialog.DialogResult;
         }
         finally
         {
-            _dialogLock.Release();
+            if (acquired)
+                _dialogLock.Release();
+            dialog.Dispose();
         }
     }
 
@@ -62,6 +76,10 @@ public class DialogManager : IDisposable
                 FileTypeChoices = fileTypes,
                 SuggestedFileName = defaultFilePath,
                 DefaultExtension = Path.GetExtension(defaultFilePath).TrimStart('.'),
+                ShowOverwritePrompt = true,
+                SuggestedStartLocation = await topLevel.StorageProvider.TryGetFolderFromPathAsync(
+                    settings.LastDownloadDirectory
+                ),
             }
         );
 

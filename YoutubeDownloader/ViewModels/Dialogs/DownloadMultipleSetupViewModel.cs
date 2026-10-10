@@ -27,7 +27,38 @@ public partial class DownloadMultipleSetupViewModel(
     public partial string? Title { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FilteredVideos))]
+    [NotifyPropertyChangedFor(nameof(SelectionSummary))]
     public partial IReadOnlyList<IVideo>? AvailableVideos { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FilteredVideos))]
+    [NotifyPropertyChangedFor(nameof(SelectionSummary))]
+    public partial string Filter { get; set; } = "";
+    public IReadOnlyList<IVideo> FilteredVideos =>
+        AvailableVideos
+            ?.Where(v => v.Title.Contains(Filter ?? "", StringComparison.OrdinalIgnoreCase))
+            .ToArray() ?? [];
+
+    private static bool IsUnavailable(IVideo video) =>
+        video.Title is "[Private video]" or "[Deleted video]";
+
+    public string SelectionSummary =>
+        string.Format(
+            Localization.Get("SelectionSummary"),
+            FilteredVideos.Count,
+            AvailableVideos?.Count ?? 0,
+            SelectedVideos.Count,
+            AvailableVideos?.Count(IsUnavailable) ?? 0
+        );
+
+    [RelayCommand]
+    private void SelectVisible()
+    {
+        SelectedVideos.Clear();
+        foreach (var video in FilteredVideos.Where(v => !IsUnavailable(v)))
+            SelectedVideos.Add(video);
+    }
 
     [ObservableProperty]
     public partial Container SelectedContainer { get; set; } = Container.Mp4;
@@ -48,9 +79,19 @@ public partial class DownloadMultipleSetupViewModel(
     [RelayCommand]
     private void Initialize()
     {
-        SelectedContainer = settingsService.LastContainer;
-        SelectedVideoQualityPreference = settingsService.LastVideoQualityPreference;
-        SelectedVideos.CollectionChanged += (_, _) => ConfirmCommand.NotifyCanExecuteChanged();
+        var profile = settingsService.Profiles.FirstOrDefault(p =>
+            p.Id == settingsService.SelectedProfileId
+        );
+        SelectedContainer = profile is not null
+            ? new Container(profile.Container)
+            : settingsService.LastContainer;
+        SelectedVideoQualityPreference =
+            profile?.Quality ?? settingsService.LastVideoQualityPreference;
+        SelectedVideos.CollectionChanged += (_, _) =>
+        {
+            ConfirmCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(SelectionSummary));
+        };
     }
 
     [RelayCommand]
@@ -65,7 +106,9 @@ public partial class DownloadMultipleSetupViewModel(
     [RelayCommand(CanExecute = nameof(CanConfirm))]
     private async Task ConfirmAsync()
     {
-        var dirPath = await dialogManager.PromptDirectoryPathAsync();
+        var dirPath = await dialogManager.PromptDirectoryPathAsync(
+            settingsService.LastDownloadDirectory
+        );
         if (string.IsNullOrWhiteSpace(dirPath))
             return;
 
@@ -89,10 +132,6 @@ public partial class DownloadMultipleSetupViewModel(
 
             var filePath = PathExtensions.EnsureUniqueFilePath(baseFilePath);
 
-            // Download does not start immediately, so lock in the file path to avoid conflicts
-            DirectoryExtensions.CreateDirectoryForFile(filePath);
-            await File.WriteAllBytesAsync(filePath, []);
-
             downloads.Add(
                 viewModelManager.CreateDownloadViewModel(
                     video,
@@ -104,6 +143,8 @@ public partial class DownloadMultipleSetupViewModel(
 
         settingsService.LastContainer = SelectedContainer;
         settingsService.LastVideoQualityPreference = SelectedVideoQualityPreference;
+        settingsService.LastDownloadDirectory = dirPath;
+        settingsService.Save();
 
         Close(downloads);
     }

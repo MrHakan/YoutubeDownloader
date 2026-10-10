@@ -18,7 +18,11 @@ public class AuthSetupViewModel : DialogViewModelBase
     public IReadOnlyList<Cookie>? Cookies
     {
         get => _settingsService.LastAuthCookies;
-        set => _settingsService.LastAuthCookies = value;
+        set
+        {
+            _settingsService.LastAuthCookies = value;
+            _settingsService.Save();
+        }
     }
 
     public bool IsAuthenticated =>
@@ -27,7 +31,10 @@ public class AuthSetupViewModel : DialogViewModelBase
         // None of the '__SECURE' cookies should be expired
         Cookies
             .Where(c => c.Name.StartsWith("__SECURE", StringComparison.OrdinalIgnoreCase))
-            .All(c => !c.Expired && c.Expires.ToUniversalTime() > DateTime.UtcNow);
+            .All(c =>
+                !c.Expired
+                && (c.Expires == DateTime.MinValue || c.Expires.ToUniversalTime() > DateTime.UtcNow)
+            );
 
     public AuthSetupViewModel(SettingsService settingsService)
     {

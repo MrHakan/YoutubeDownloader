@@ -17,6 +17,20 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  test:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309
+      - name: Offline regression tests
+        run: dotnet run --project YoutubeDownloader.Tests --configuration Release -p:CSharpier_Bypass=true -- ${{ matrix.os == 'windows-latest' && '--ui' || '' }}
+
   format:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -98,7 +112,13 @@ jobs:
           --runtime ${{ matrix.rid }}
           --self-contained
 
-      - name: Upload app binaries
+      - name: Verify package
+        run: >
+          pwsh -NoProfile -File scripts/Verify-Package.ps1
+          -PublishDir YoutubeDownloader/bin/publish
+          -ExpectedFFmpeg "${{ matrix.bundle-ffmpeg }}"
+
+      - name: Upload verified app binaries
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ matrix.artifact-name-base }}.${{ matrix.rid }}
@@ -111,6 +131,7 @@ jobs:
     needs:
       - format
       - pack
+      - test
 
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -192,6 +213,7 @@ jobs:
 
   notify:
     needs: deploy
+    if: ${{ github.repository == 'MrHakan/YoutubeDownloader' && vars.ENABLE_DISCORD_NOTIFICATIONS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

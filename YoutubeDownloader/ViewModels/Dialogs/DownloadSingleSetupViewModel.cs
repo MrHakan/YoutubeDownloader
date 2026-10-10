@@ -33,9 +33,20 @@ public partial class DownloadSingleSetupViewModel(
     [RelayCommand]
     private void Initialize()
     {
-        SelectedDownloadOption = AvailableDownloadOptions?.FirstOrDefault(o =>
-            o.Container == settingsService.LastContainer
+        var profile = settingsService.Profiles.FirstOrDefault(p =>
+            p.Id == settingsService.SelectedProfileId
         );
+        SelectedDownloadOption =
+            AvailableDownloadOptions is not null && profile is not null
+                ? new VideoDownloadPreference(
+                    new YoutubeExplode.Videos.Streams.Container(profile.Container),
+                    profile.Quality
+                ).TryGetBestOption(AvailableDownloadOptions)
+                : null;
+        SelectedDownloadOption ??=
+            AvailableDownloadOptions?.FirstOrDefault(o =>
+                o.Container == settingsService.LastContainer
+            ) ?? AvailableDownloadOptions?.FirstOrDefault();
     }
 
     [RelayCommand]
@@ -55,7 +66,7 @@ public partial class DownloadSingleSetupViewModel(
 
         var filePath = await dialogManager.PromptSaveFilePathAsync(
             [
-                new FilePickerFileType($"{container.Name} file")
+                new FilePickerFileType($"{container.Name} {Localization.Get("File")}")
                 {
                     Patterns = [$"*.{container.Name}"],
                 },
@@ -66,12 +77,15 @@ public partial class DownloadSingleSetupViewModel(
         if (string.IsNullOrWhiteSpace(filePath))
             return;
 
-        // Download does not start immediately, so lock in the file path to avoid conflicts
-        DirectoryExtensions.CreateDirectoryForFile(filePath);
-        await File.WriteAllBytesAsync(filePath, []);
-
         settingsService.LastContainer = container;
-
-        Close(viewModelManager.CreateDownloadViewModel(Video, SelectedDownloadOption, filePath));
+        settingsService.LastDownloadDirectory = Path.GetDirectoryName(filePath)!;
+        settingsService.Save();
+        var download = viewModelManager.CreateDownloadViewModel(
+            Video,
+            SelectedDownloadOption,
+            filePath
+        );
+        download.Overwrite = File.Exists(filePath);
+        Close(download);
     }
 }

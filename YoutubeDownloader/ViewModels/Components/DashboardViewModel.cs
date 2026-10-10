@@ -1,21 +1,24 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Gress;
-using Gress.Completable;
 using YoutubeDownloader.Core.Downloading;
 using YoutubeDownloader.Core.Resolving;
-using YoutubeDownloader.Core.Tagging;
+using YoutubeDownloader.Core.Utils;
 using YoutubeDownloader.Framework;
 using YoutubeDownloader.Services;
 using YoutubeDownloader.Utils;
 using YoutubeDownloader.Utils.Extensions;
 using YoutubeExplode.Exceptions;
+using YoutubeExplode.Videos;
+using YoutubeExplode.Videos.Streams;
 
 namespace YoutubeDownloader.ViewModels.Components;
 
@@ -25,349 +28,462 @@ public partial class DashboardViewModel : ViewModelBase
     private readonly SnackbarManager _snackbarManager;
     private readonly DialogManager _dialogManager;
     private readonly SettingsService _settingsService;
-
+    private readonly DownloadQueue _queue;
     private readonly DisposableCollector _eventRoot = new();
-    private readonly ResizableSemaphore _downloadSemaphore = new();
-    private readonly AutoResetProgressMuxer _progressMuxer;
+    private string? _lastStorageError;
 
     public DashboardViewModel(
         ViewModelManager viewModelManager,
         SnackbarManager snackbarManager,
         DialogManager dialogManager,
-        SettingsService settingsService
+        SettingsService settingsService,
+        DownloadQueue queue
     )
     {
         _viewModelManager = viewModelManager;
         _snackbarManager = snackbarManager;
         _dialogManager = dialogManager;
         _settingsService = settingsService;
-
-        _progressMuxer = Progress.CreateMuxer().WithAutoReset();
-
+        _queue = queue;
+        _queue.Changed += QueueChanged;
         _eventRoot.Add(
-            _settingsService.WatchProperty(
+            settingsService.WatchProperty(
                 o => o.ParallelLimit,
-                () => _downloadSemaphore.MaxCount = _settingsService.ParallelLimit,
+                () => queue.Limit = settingsService.ParallelLimit,
                 true
             )
         );
-
         _eventRoot.Add(
-            Progress.WatchProperty(
-                o => o.Current,
-                () => OnPropertyChanged(nameof(IsProgressIndeterminate))
+            settingsService.WatchProperty(
+                o => o.Profiles,
+                () =>
+                {
+                    OnPropertyChanged(nameof(Profiles));
+                    OnPropertyChanged(nameof(SelectedProfile));
+                }
+            )
+        );
+        Localization.Changed += LanguageChanged;
+        _eventRoot.Add(
+            settingsService.WatchProperty(
+                o => o.SelectedProfileId,
+                () => OnPropertyChanged(nameof(SelectedProfile))
+            )
+        );
+        _eventRoot.Add(
+            settingsService.WatchProperty(
+                o => o.LastDownloadDirectory,
+                () => OnPropertyChanged(nameof(DownloadDirectory))
             )
         );
     }
 
+    private void LanguageChanged() => OnAllPropertiesChanged();
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsProgressIndeterminate))]
     [NotifyCanExecuteChangedFor(nameof(ProcessQueryCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ShowAuthSetupCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ShowSettingsCommand))]
     public partial bool IsBusy { get; set; }
-
-    public ProgressContainer<Percentage> Progress { get; } = new();
-
-    public bool IsProgressIndeterminate => IsBusy && Progress.Current.Fraction is <= 0 or >= 1;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ProcessQueryCommand))]
     public partial string? Query { get; set; }
 
+    [ObservableProperty]
+    public partial bool QuickMode { get; set; }
+    public ProgressContainer<Percentage> Progress { get; } = new();
+    public bool IsProgressIndeterminate => IsBusy;
     public ObservableCollection<DownloadViewModel> Downloads { get; } = [];
+    public IReadOnlyList<DownloadProfile> Profiles => _settingsService.Profiles.ToArray();
+    public DownloadProfile? SelectedProfile
+    {
+        get => Profiles.FirstOrDefault(p => p.Id == _settingsService.SelectedProfileId);
+        set
+        {
+            if (value is null)
+                return;
+            _settingsService.SelectedProfileId = value.Id;
+            OnPropertyChanged();
+            _settingsService.Save();
+        }
+    }
+    public string DownloadDirectory => _settingsService.LastDownloadDirectory;
 
-    private bool CanShowAuthSetup() => !IsBusy;
+    public void RestoreQueue()
+    {
+        _queue.Load();
+        foreach (var job in _queue.Jobs)
+            SyncJob(job);
+        NotifyStorageError();
+    }
 
-    [RelayCommand(CanExecute = nameof(CanShowAuthSetup))]
+    private void QueueChanged(DownloadJob job) => Dispatcher.UIThread.Post(() => SyncJob(job));
+
+    private void SyncJob(DownloadJob job)
+    {
+        if (!_queue.Jobs.Contains(job))
+            return;
+        var vm = Downloads.FirstOrDefault(d => d.JobId == job.Request.Id);
+        if (vm is null)
+        {
+            vm = _viewModelManager.CreateDownloadViewModel(job);
+            Downloads.Add(vm);
+        }
+        vm.Apply(job);
+        var wanted = _queue.Jobs.ToList().IndexOf(job);
+        var current = Downloads.IndexOf(vm);
+        if (wanted >= 0 && current != wanted && wanted < Downloads.Count)
+            Downloads.Move(current, wanted);
+        NotifyStorageError();
+    }
+
+    private void NotifyStorageError()
+    {
+        if (_queue.StorageError is { } error && error != _lastStorageError)
+            _snackbarManager.Notify(Localization.Get(error));
+        _lastStorageError = _queue.StorageError;
+    }
+
+    [RelayCommand]
     private async Task ShowAuthSetupAsync() =>
         await _dialogManager.ShowDialogAsync(_viewModelManager.CreateAuthSetupViewModel());
 
-    private bool CanShowSettings() => !IsBusy;
-
-    [RelayCommand(CanExecute = nameof(CanShowSettings))]
+    [RelayCommand]
     private async Task ShowSettingsAsync() =>
         await _dialogManager.ShowDialogAsync(_viewModelManager.CreateSettingsViewModel());
 
-    private async void EnqueueDownload(DownloadViewModel download, int position = 0)
+    [RelayCommand]
+    private void ResumeInterruptedDownloads()
     {
-        Downloads.Insert(position, download);
-        var progress = _progressMuxer.CreateInput();
+        foreach (var job in _queue.Jobs.Where(j => j.Status == QueueStatus.Interrupted))
+            _queue.Restart(job.Request.Id);
+    }
 
+    [RelayCommand]
+    private void MoveUp(DownloadViewModel item) => _queue.Move(item.JobId, -1);
+
+    [RelayCommand]
+    private void MoveDown(DownloadViewModel item) => _queue.Move(item.JobId, 1);
+
+    [RelayCommand]
+    private async Task ChooseDirectoryAsync()
+    {
+        var path = await _dialogManager.PromptDirectoryPathAsync(DownloadDirectory);
+        if (path is null)
+            return;
+        _settingsService.LastDownloadDirectory = path;
+        _settingsService.Save();
+        OnPropertyChanged(nameof(DownloadDirectory));
+    }
+
+    [RelayCommand]
+    private void OpenDirectory()
+    {
         try
         {
-            using var downloader = new VideoDownloader(_settingsService.LastAuthCookies);
-            var tagInjector = new MediaTagInjector();
-
-            using var access = await _downloadSemaphore.AcquireAsync(download.CancellationToken);
-
-            download.Status = DownloadStatus.Started;
-
-            var downloadOption =
-                download.DownloadOption
-                ?? await downloader.GetBestDownloadOptionAsync(
-                    download.Video!.Id,
-                    download.DownloadPreference!,
-                    _settingsService.ShouldInjectLanguageSpecificAudioStreams,
-                    download.CancellationToken
-                );
-
-            await downloader.DownloadVideoAsync(
-                download.FilePath!,
-                download.Video!,
-                downloadOption,
-                _settingsService.ShouldInjectSubtitles,
-                download.Progress.Merge(progress),
-                download.CancellationToken
-            );
-
-            if (_settingsService.ShouldInjectTags)
-            {
-                try
-                {
-                    await tagInjector.InjectTagsAsync(
-                        download.FilePath!,
-                        download.Video!,
-                        download.CancellationToken
-                    );
-                }
-                catch
-                {
-                    // Media tagging is not critical
-                }
-            }
-
-            download.Status = DownloadStatus.Completed;
+            if (Directory.Exists(DownloadDirectory))
+                ProcessExtensions.StartShellExecute(DownloadDirectory);
         }
         catch (Exception ex)
         {
-            try
-            {
-                // Delete the incompletely downloaded file
-                if (!string.IsNullOrWhiteSpace(download.FilePath))
-                    File.Delete(download.FilePath);
-            }
-            catch
-            {
-                // Ignore
-            }
-
-            download.Status =
-                ex is OperationCanceledException ? DownloadStatus.Canceled : DownloadStatus.Failed;
-
-            // Short error message for YouTube-related errors, full for others
-            download.ErrorMessage = ex is YoutubeExplodeException ? ex.Message : ex.ToString();
+            _snackbarManager.Notify(Localization.Get("ErrorFileSystem"));
+            Log.Write("open-directory", ex);
         }
-        finally
+    }
+
+    [RelayCommand]
+    private async Task ShowAboutAsync()
+    {
+        var dialog = _viewModelManager.CreateMessageBoxViewModel(
+            Localization.Get("About"),
+            $"{Program.Name} v{Program.VersionString}\nMrHakan\n\n"
+                + Localization.Get("AboutDetails"),
+            Localization.Get("Releases"),
+            Localization.Get("CLOSE")
+        );
+        if (await _dialogManager.ShowDialogAsync(dialog) == true)
+            ProcessExtensions.StartShellExecute(Program.ProjectReleasesUrl);
+    }
+
+    private DiagnosticLog Log =>
+        new(Path.Combine(_settingsService.DataDirectory, "diagnostics.log"));
+
+    private DownloadViewModel CreateProfileDownload(IVideo video)
+    {
+        var profile = SelectedProfile ?? Profiles[0];
+        var container = new Container(profile.Container);
+        return _viewModelManager.CreateDownloadViewModel(
+            video,
+            new VideoDownloadPreference(container, profile.Quality),
+            Path.Combine(
+                DownloadDirectory,
+                FileNameTemplate.Apply(_settingsService.FileNameTemplate, video, container)
+            )
+        );
+    }
+
+    private void EnqueueDownload(DownloadViewModel download)
+    {
+        var option = download.DownloadOption;
+        var preference = download.DownloadPreference;
+        var request = new DownloadRequest
         {
-            progress.ReportCompletion();
-            download.Dispose();
-        }
+            VideoId = download.Video!.Id,
+            Title = download.Video.Title,
+            FilePath = download.FilePath!,
+            Container = option?.Container.Name ?? preference!.PreferredContainer.Name,
+            AudioOnly = option?.IsAudioOnly ?? preference!.PreferredContainer.IsAudioOnly,
+            Quality = preference?.PreferredVideoQuality ?? VideoQualityPreference.Highest,
+            ExactQuality = option?.VideoQuality?.Label,
+            AudioLanguages =
+                option
+                    ?.StreamInfos.OfType<IAudioStreamInfo>()
+                    .Where(s => s.AudioLanguage is not null)
+                    .Select(s => s.AudioLanguage!.Value.Code)
+                    .Distinct()
+                    .ToArray() ?? [],
+            IncludeLanguages = _settingsService.ShouldInjectLanguageSpecificAudioStreams,
+            IncludeSubtitles = _settingsService.ShouldInjectSubtitles,
+            IncludeTags = _settingsService.ShouldInjectTags,
+            Overwrite = download.Overwrite,
+        };
+        var job = _queue.Enqueue(request, download.Video);
+        download.Dispose();
+        SyncJob(job);
     }
 
     private bool CanProcessQuery() => !IsBusy && !string.IsNullOrWhiteSpace(Query);
 
-    [RelayCommand(CanExecute = nameof(CanProcessQuery))]
-    private async Task ProcessQueryAsync()
+    [RelayCommand(CanExecute = nameof(CanProcessQuery), IncludeCancelCommand = true)]
+    private async Task ProcessQueryAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(Query))
             return;
-
         IsBusy = true;
-
-        // Small weight so as to not offset any existing download operations
-        var progress = _progressMuxer.CreateInput(0.01);
-
         try
         {
             using var resolver = new QueryResolver(_settingsService.LastAuthCookies);
-
-            // Split queries by newlines
             var queries = Query.Split(
                 '\n',
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
             );
-
-            // Process individual queries
-            var queryResults = new List<QueryResult>();
-            foreach (var (i, query) in queries.Index())
+            var results = new List<QueryResult>();
+            foreach (var (index, query) in queries.Index())
             {
                 try
                 {
-                    queryResults.Add(await resolver.ResolveAsync(query));
+                    results.Add(await resolver.ResolveAsync(query, cancellationToken));
                 }
-                // If it's not the only query in the list, don't interrupt the process
-                // and report the error via an async notification instead of a sync dialog.
-                // https://github.com/Tyrrrz/YoutubeDownloader/issues/563
                 catch (YoutubeExplodeException ex)
-                    when (ex is VideoUnavailableException or PlaylistUnavailableException
-                        && queries.Length > 1
+                    when (queries.Length > 1
+                        && ex is VideoUnavailableException or PlaylistUnavailableException
                     )
                 {
-                    _snackbarManager.Notify(ex.Message);
+                    _snackbarManager.Notify(Localization.Get("UnavailableSkipped"));
                 }
-
-                progress.Report(Percentage.FromFraction((i + 1.0) / queries.Length));
+                Progress.Report(Percentage.FromFraction((index + 1.0) / queries.Length));
             }
-
-            // Aggregate results
-            var queryResult = QueryResult.Aggregate(queryResults);
-
-            // Single video result
-            if (queryResult.Videos.Count == 1)
-            {
-                var video = queryResult.Videos.Single();
-
-                using var downloader = new VideoDownloader(_settingsService.LastAuthCookies);
-
-                var downloadOptions = await downloader.GetDownloadOptionsAsync(
-                    video.Id,
-                    _settingsService.ShouldInjectLanguageSpecificAudioStreams
-                );
-
-                var download = await _dialogManager.ShowDialogAsync(
-                    _viewModelManager.CreateDownloadSingleSetupViewModel(video, downloadOptions)
-                );
-
-                if (download is null)
-                    return;
-
-                EnqueueDownload(download);
-
-                Query = "";
-            }
-            // Multiple videos
-            else if (queryResult.Videos.Count > 1)
-            {
-                var downloads = await _dialogManager.ShowDialogAsync(
-                    _viewModelManager.CreateDownloadMultipleSetupViewModel(
-                        queryResult.Title,
-                        queryResult.Videos,
-                        // Pre-select videos if they come from a single query and not from search
-                        queryResult.Kind
-                            is not QueryResultKind.Search
-                                and not QueryResultKind.Aggregate
-                    )
-                );
-
-                if (downloads is null)
-                    return;
-
-                foreach (var download in downloads)
-                    EnqueueDownload(download);
-
-                Query = "";
-            }
-            // No videos found
-            else
+            var result = QueryResult.Aggregate(results);
+            if (result.Videos.Count == 0)
             {
                 await _dialogManager.ShowDialogAsync(
                     _viewModelManager.CreateMessageBoxViewModel(
-                        "Nothing found",
-                        "Couldn't find any videos based on the query or URL you provided"
-                    )
+                        Localization.Get("Nothing found"),
+                        Localization.Get("NothingFoundMessage")
+                    ),
+                    cancellationToken
                 );
+                return;
             }
+            if (QuickMode && result.Kind != QueryResultKind.Search)
+            {
+                if (string.IsNullOrWhiteSpace(DownloadDirectory))
+                    await ChooseDirectoryAsync();
+                if (string.IsNullOrWhiteSpace(DownloadDirectory))
+                    return;
+                cancellationToken.ThrowIfCancellationRequested();
+                foreach (var video in result.Videos)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var download = CreateProfileDownload(video);
+                    if (_settingsService.ShouldSkipExistingFiles && File.Exists(download.FilePath))
+                    {
+                        download.Dispose();
+                        continue;
+                    }
+                    EnqueueDownload(download);
+                }
+            }
+            else if (result.Videos.Count == 1)
+            {
+                var video = result.Videos.Single();
+                using var downloader = new VideoDownloader(_settingsService.LastAuthCookies);
+                var options = await downloader.GetDownloadOptionsAsync(
+                    video.Id,
+                    _settingsService.ShouldInjectLanguageSpecificAudioStreams,
+                    cancellationToken
+                );
+                var download = await _dialogManager.ShowDialogAsync(
+                    _viewModelManager.CreateDownloadSingleSetupViewModel(video, options),
+                    cancellationToken
+                );
+                if (download is null)
+                    return;
+                EnqueueDownload(download);
+            }
+            else
+            {
+                var title = result.Title;
+                foreach (var prefix in new[] { "Playlist", "Channel", "Search" })
+                    if (title.StartsWith(prefix + ": ", StringComparison.Ordinal))
+                        title = Localization.Get(prefix) + title[prefix.Length..];
+                var downloads = await _dialogManager.ShowDialogAsync(
+                    _viewModelManager.CreateDownloadMultipleSetupViewModel(
+                        title,
+                        result.Videos,
+                        result.Kind is not QueryResultKind.Search and not QueryResultKind.Aggregate
+                    ),
+                    cancellationToken
+                );
+                if (downloads is null)
+                    return;
+                foreach (var download in downloads)
+                    EnqueueDownload(download);
+            }
+            Query = "";
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception ex)
         {
+            Log.Write("resolve-query", ex);
             await _dialogManager.ShowDialogAsync(
                 _viewModelManager.CreateMessageBoxViewModel(
-                    "Error",
-                    // Short error message for YouTube-related errors, full for others
-                    ex is YoutubeExplodeException
-                        ? ex.Message
-                        : ex.ToString()
+                    Localization.Get("Error"),
+                    Localization.Get("Error" + DownloadFailure.Classify(ex))
                 )
             );
         }
         finally
         {
-            progress.ReportCompletion();
             IsBusy = false;
         }
     }
 
-    private void RemoveDownload(DownloadViewModel download)
+    private void RemoveDownload(DownloadViewModel item)
     {
-        Downloads.Remove(download);
-        download.CancelCommand.Execute(null);
-        download.Dispose();
+        if (!_queue.Remove(item.JobId))
+        {
+            _queue.Cancel(item.JobId);
+            return;
+        }
+        Downloads.Remove(item);
+        item.Dispose();
     }
 
     [RelayCommand]
     private void RemoveSuccessfulDownloads()
     {
-        foreach (var download in Downloads.ToArray())
-        {
-            if (download.Status == DownloadStatus.Completed)
-                RemoveDownload(download);
-        }
+        foreach (var item in Downloads.Where(d => d.Status == DownloadStatus.Completed).ToArray())
+            RemoveDownload(item);
     }
 
     [RelayCommand]
     private void RemoveInactiveDownloads()
     {
-        foreach (var download in Downloads.ToArray())
-        {
-            if (
-                download.Status
-                is DownloadStatus.Completed
-                    or DownloadStatus.Failed
-                    or DownloadStatus.Canceled
-            )
-                RemoveDownload(download);
-        }
+        foreach (
+            var item in Downloads
+                .Where(d => d.Status is not (DownloadStatus.Started or DownloadStatus.Enqueued))
+                .ToArray()
+        )
+            RemoveDownload(item);
     }
 
     [RelayCommand]
-    private void RestartDownload(DownloadViewModel download)
+    private void RestartDownload(DownloadViewModel item) => _queue.Restart(item.JobId);
+
+    [RelayCommand(IncludeCancelCommand = true)]
+    private async Task ChangeFormatAsync(
+        DownloadViewModel item,
+        CancellationToken cancellationToken
+    )
     {
-        var position = Math.Max(0, Downloads.IndexOf(download));
-        RemoveDownload(download);
-
-        var newDownload = download.DownloadOption is not null
-            ? _viewModelManager.CreateDownloadViewModel(
-                download.Video!,
-                download.DownloadOption,
-                download.FilePath!
-            )
-            : _viewModelManager.CreateDownloadViewModel(
-                download.Video!,
-                download.DownloadPreference!,
-                download.FilePath!
+        var job = _queue.Jobs.FirstOrDefault(j => j.Request.Id == item.JobId);
+        if (job is null || job.Status is QueueStatus.Running or QueueStatus.Queued)
+            return;
+        try
+        {
+            using var resolver = new QueryResolver(_settingsService.LastAuthCookies);
+            var result = await resolver.ResolveAsync(
+                "https://www.youtube.com/watch?v=" + job.Request.VideoId,
+                cancellationToken
             );
-
-        EnqueueDownload(newDownload, position);
+            var video = result.Videos.Single();
+            using var downloader = new VideoDownloader(_settingsService.LastAuthCookies);
+            var options = await downloader.GetDownloadOptionsAsync(
+                video.Id,
+                _settingsService.ShouldInjectLanguageSpecificAudioStreams,
+                cancellationToken
+            );
+            var download = await _dialogManager.ShowDialogAsync(
+                _viewModelManager.CreateDownloadSingleSetupViewModel(video, options),
+                cancellationToken
+            );
+            if (download is not null)
+            {
+                RemoveDownload(item);
+                EnqueueDownload(download);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            Log.Write("change-format", ex);
+            _snackbarManager.Notify(Localization.Get("Error" + DownloadFailure.Classify(ex)));
+        }
     }
 
     [RelayCommand]
     private void RestartFailedDownloads()
     {
-        foreach (var download in Downloads.ToArray())
-        {
-            if (download.Status == DownloadStatus.Failed)
-                RestartDownload(download);
-        }
+        foreach (var item in Downloads.Where(d => d.Status == DownloadStatus.Failed).ToArray())
+            _queue.Restart(item.JobId);
     }
 
     [RelayCommand]
     private void CancelAllDownloads()
     {
-        foreach (var download in Downloads)
-            download.CancelCommand.Execute(null);
+        foreach (var job in _queue.Jobs)
+            _queue.Cancel(job.Request.Id);
+    }
+
+    public async Task ShutdownAsync()
+    {
+        ProcessQueryCancelCommand.Execute(null);
+        ChangeFormatCancelCommand.Execute(null);
+        await _queue.ShutdownAsync();
+        var pending = new[] { ProcessQueryCommand.ExecutionTask, ChangeFormatCommand.ExecutionTask }
+            .OfType<Task>()
+            .ToArray();
+        try
+        {
+            await Task.WhenAll(pending).WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        catch (TimeoutException ex)
+        {
+            Log.Write("close-native-picker", ex);
+        }
     }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
-            CancelAllDownloads();
-
+            _queue.Changed -= QueueChanged;
+            Localization.Changed -= LanguageChanged;
             _eventRoot.Dispose();
-            _downloadSemaphore.Dispose();
+            foreach (var item in Downloads)
+                item.Dispose();
         }
-
         base.Dispose(disposing);
     }
 }

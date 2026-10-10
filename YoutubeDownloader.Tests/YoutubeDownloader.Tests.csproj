@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CSharpier.MsBuild" Version="1.1.2" PrivateAssets="all" />
+    <ProjectReference Include="../YoutubeDownloader/YoutubeDownloader.csproj" />
+  </ItemGroup>
+</Project>

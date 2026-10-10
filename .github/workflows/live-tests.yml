@@ -1,0 +1,18 @@
+name: Live YouTube compatibility
+on:
+  workflow_dispatch:
+jobs:
+  youtube:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309
+      - name: Public video downloads and decoding
+        shell: pwsh
+        run: |
+          $env:PATH = (Join-Path $env:GITHUB_WORKSPACE 'YoutubeDownloader') + [IO.Path]::PathSeparator + $env:PATH
+          dotnet run --project YoutubeDownloader.Tests --configuration Release -p:CSharpier_Bypass=true -- --live
+          exit $LASTEXITCODE

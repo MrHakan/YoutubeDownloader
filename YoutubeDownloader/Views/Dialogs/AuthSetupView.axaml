@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="YoutubeDownloader.Views.Dialogs.AuthSetupView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -14,7 +14,7 @@
             Margin="16"
             FontSize="19"
             FontWeight="Light"
-            Text="Authentication" />
+            Text="{DynamicResource Ui66880D2D8216}" />
 
         <!--  Content  -->
         <Border
@@ -41,7 +41,7 @@
                         FontSize="18"
                         TextAlignment="Center"
                         TextWrapping="Wrap">
-                        <Run FontWeight="Light" Text="You are currently authenticated" />
+                        <Run FontWeight="Light" Text="{DynamicResource Ui5ED1974CCF64}" />
                     </TextBlock>
 
                     <!--  Log out  -->
@@ -50,7 +50,7 @@
                         Margin="16"
                         HorizontalAlignment="Center"
                         Click="LogOutButton_OnClick"
-                        Content="Log out"
+                        Content="{DynamicResource Ui49616145514E}"
                         FontSize="18"
                         Foreground="{DynamicResource MaterialSecondaryMidBrush}"
                         Theme="{DynamicResource MaterialFlatButton}" />
@@ -63,7 +63,7 @@
                     VerticalAlignment="Center"
                     FontSize="18"
                     IsVisible="{Binding !IsAuthenticated}"
-                    Text="Loading..." />
+                    Text="{DynamicResource Ui47D2A515EF2F}" />
 
                 <!--  Browser  -->
                 <WebView
@@ -81,7 +81,7 @@
             Margin="16"
             HorizontalAlignment="Stretch"
             Command="{Binding CloseCommand}"
-            Content="CLOSE"
+            Content="{DynamicResource UiF13A1ED0CF3C}"
             IsCancel="True"
             IsDefault="True"
             Theme="{DynamicResource MaterialOutlineButton}" />

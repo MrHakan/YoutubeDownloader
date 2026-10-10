@@ -1,65 +1,41 @@
-param (
-    [Parameter(Mandatory=$false)]
+param(
     [string]$Platform,
-
-    [Parameter(Mandatory=$false)]
     [string]$OutputPath = $PSScriptRoot
 )
-
-$ErrorActionPreference = "Stop"
-
-# If the platform is not specified, use the current OS/arch
+$ErrorActionPreference = 'Stop'
 if (-not $Platform) {
-    $arch = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-
-    if ($isWindows) {
-        $Platform = "windows-$arch"
-    } elseif ($isLinux) {
-        $Platform = "linux-$arch"
-    } elseif ($isMacOS) {
-        $Platform = "osx-$arch"
-    } else {
-        throw "Unsupported platform"
-    }
+    $architecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+    if ($IsWindows) { $Platform = "windows-$architecture" }
+    elseif ($IsLinux) { $Platform = "linux-$architecture" }
+    elseif ($IsMacOS) { $Platform = "osx-$architecture" }
+    else { throw 'Unsupported platform' }
 }
-
-# Normalize platform identifier
-$Platform = $Platform.ToLower().Replace("win-", "windows-")
-
-# Identify the FFmpeg filename based on the platform
-$fileName = if ($Platform.Contains("windows-")) { "ffmpeg.exe" } else { "ffmpeg" }
-
-# If the output path is an existing directory, append the default file name for the platform
-if (Test-Path $OutputPath -PathType Container) {
-    $OutputPath = Join-Path $OutputPath $fileName
-}
-
-# Delete the existing file if it exists
-if (Test-Path $OutputPath) {
-    Remove-Item $OutputPath
-}
-
-# Download the archive
-Write-Host "Downloading FFmpeg for $Platform..."
-$http = New-Object System.Net.WebClient
+$Platform = $Platform.ToLowerInvariant().Replace('win-', 'windows-')
+if ($Platform -notmatch '^(windows|linux|osx)-(x64|x86|arm64|arm)$') { throw 'Unsupported platform identifier' }
+$fileName = if ($Platform.StartsWith('windows-')) { 'ffmpeg.exe' } else { 'ffmpeg' }
+if (Test-Path -LiteralPath $OutputPath -PathType Container) { $OutputPath = Join-Path $OutputPath $fileName }
+$OutputPath = [IO.Path]::GetFullPath($OutputPath)
+$parentDirectory = [IO.Path]::GetDirectoryName($OutputPath)
+[IO.Directory]::CreateDirectory($parentDirectory) | Out-Null
+$archivePath = $OutputPath + '.' + [guid]::NewGuid().ToString('N') + '.zip'
+$temporaryPath = $OutputPath + '.' + [guid]::NewGuid().ToString('N') + '.new'
+Write-Output "Downloading FFmpeg for $Platform..."
 try {
-    $http.DownloadFile("https://github.com/Tyrrrz/FFmpegBin/releases/download/7.1.2/ffmpeg-$Platform.zip", "$OutputPath.zip")
-} finally {
-    $http.Dispose()
-}
-
-try {
-    # Extract FFmpeg
-    Add-Type -Assembly System.IO.Compression.FileSystem
-    $zip = [IO.Compression.ZipFile]::OpenRead("$OutputPath.zip")
+    Invoke-WebRequest -Uri "https://github.com/Tyrrrz/FFmpegBin/releases/download/7.1.2/ffmpeg-$Platform.zip" -OutFile $archivePath
+    $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
     try {
-        [IO.Compression.ZipFileExtensions]::ExtractToFile($zip.GetEntry($fileName), $OutputPath)
-    } finally {
-        $zip.Dispose()
+        $entry = $archive.GetEntry($fileName)
+        if ($null -eq $entry -or $entry.Length -eq 0) { throw 'FFmpeg archive is invalid' }
+        [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $temporaryPath)
+    } finally { $archive.Dispose() }
+    if (-not $IsWindows) {
+        & chmod +x -- $temporaryPath
+        if ($LASTEXITCODE -ne 0) { throw 'Could not set FFmpeg executable permissions' }
     }
-
-    Write-Host "Done downloading FFmpeg."
+    [IO.File]::Move($temporaryPath, $OutputPath, $true)
+    Write-Output 'FFmpeg downloaded successfully.'
 } finally {
-    # Clean up
-    Remove-Item "$OutputPath.zip" -Force
+    foreach ($temporaryFile in @($archivePath, $temporaryPath)) {
+        if (Test-Path -LiteralPath $temporaryFile) { Remove-Item -LiteralPath $temporaryFile -Force }
+    }
 }

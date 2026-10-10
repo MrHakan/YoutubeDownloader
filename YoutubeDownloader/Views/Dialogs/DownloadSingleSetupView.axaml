@@ -25,7 +25,7 @@
                 ToolTip.Tip="{Binding Video.Title}">
                 <TextBlock.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Command="{Binding CopyTitleCommand}" Header="Copy" />
+                        <MenuItem Command="{Binding CopyTitleCommand}" Header="{DynamicResource UiE21F935F11D7}" />
                     </ContextMenu>
                 </TextBlock.ContextMenu>
             </TextBlock>
@@ -55,7 +55,7 @@
                     <TextBlock
                         Margin="3,0,0,0"
                         FontWeight="Light"
-                        Text="{Binding Video.Duration, TargetNullValue=Live}"
+                        Text="{Binding Video.Duration, TargetNullValue={DynamicResource UiB64AC05F17E6}}"
                         TextTrimming="CharacterEllipsis" />
                 </StackPanel>
             </StackPanel>
@@ -73,7 +73,7 @@
         <ComboBox
             Grid.Row="2"
             Margin="16"
-            materialAssists:ComboBoxAssist.Label="Format"
+            materialAssists:ComboBoxAssist.Label="{DynamicResource Ui2F343666AAA8}"
             DockPanel.Dock="Left"
             ItemsSource="{Binding AvailableDownloadOptions}"
             SelectedItem="{Binding SelectedDownloadOption}"
@@ -88,7 +88,7 @@
                                     <Setter Property="Text" Value="{Binding VideoQuality, Mode=OneWay}" />
 
                                     <Style Selector="^.audioOnly">
-                                        <Setter Property="Text" Value="Audio" />
+                                        <Setter Property="Text" Value="{DynamicResource UiBC1B88907D3B}" />
                                     </Style>
                                 </Style>
                             </Run.Styles>
@@ -114,7 +114,7 @@
             <Button
                 Margin="0,0,8,0"
                 Command="{Binding ConfirmCommand}"
-                Content="DOWNLOAD"
+                Content="{DynamicResource UiADAA62FA4EDC}"
                 IsDefault="True"
                 Theme="{DynamicResource MaterialOutlineButton}" />
 
@@ -122,7 +122,7 @@
             <Button
                 Margin="8,0,0,0"
                 Command="{Binding CloseCommand}"
-                Content="CANCEL"
+                Content="{DynamicResource UiAD8D698573FC}"
                 IsCancel="True"
                 Theme="{DynamicResource MaterialOutlineButton}" />
         </StackPanel>

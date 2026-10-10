@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -7,6 +8,8 @@ using Avalonia.Platform;
 using AvaloniaWebView;
 using Material.Styles.Themes;
 using Microsoft.Extensions.DependencyInjection;
+using YoutubeDownloader.Core.Downloading;
+using YoutubeDownloader.Core.Utils;
 using YoutubeDownloader.Framework;
 using YoutubeDownloader.Services;
 using YoutubeDownloader.Utils;
@@ -27,6 +30,9 @@ public class App : Application, IDisposable
     private readonly MainViewModel _mainViewModel;
 
     public App()
+        : this(null) { }
+
+    public App(SettingsService? settingsOverride)
     {
         var services = new ServiceCollection();
 
@@ -37,8 +43,18 @@ public class App : Application, IDisposable
         services.AddSingleton<ViewModelManager>();
 
         // Services
-        services.AddSingleton<SettingsService>();
+        services.AddSingleton(settingsOverride ?? new SettingsService());
         services.AddSingleton<UpdateService>();
+        services.AddSingleton<IDownloadExecutor, YoutubeDownloadExecutor>();
+        services.AddSingleton(provider =>
+        {
+            var settings = provider.GetRequiredService<SettingsService>();
+            return new DownloadQueue(
+                provider.GetRequiredService<IDownloadExecutor>(),
+                Path.Combine(settings.DataDirectory, "queue.json"),
+                new DiagnosticLog(Path.Combine(settings.DataDirectory, "diagnostics.log"))
+            );
+        });
 
         // View models
         services.AddTransient<MainViewModel>();
@@ -53,6 +69,11 @@ public class App : Application, IDisposable
         _services = services.BuildServiceProvider(true);
         _settingsService = _services.GetRequiredService<SettingsService>();
         _mainViewModel = _services.GetRequiredService<ViewModelManager>().CreateMainViewModel();
+        _settingsService.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SettingsService.Language))
+                Localization.Apply(_settingsService.Language);
+        };
 
         // Re-initialize the theme when the user changes it
         _eventRoot.Add(
@@ -78,6 +99,7 @@ public class App : Application, IDisposable
         base.Initialize();
 
         AvaloniaXamlLoader.Load(this);
+        Localization.Apply(_settingsService.Language);
     }
 
     public override void RegisterServices()
@@ -114,6 +136,8 @@ public class App : Application, IDisposable
 
         // Load settings
         _settingsService.Load();
+        Localization.Apply(_settingsService.Language);
+        _mainViewModel.Dashboard.RestoreQueue();
     }
 
     private void Application_OnActualThemeVariantChanged(object? sender, EventArgs args) =>

@@ -16,6 +16,9 @@
   </PropertyGroup>
   <ItemGroup>
     <AvaloniaResource Include="..\favicon.ico" Link="favicon.ico" />
+    <EmbeddedResource Include="Localization\Texts.json" />
+    <None Include="..\License.txt" Link="License.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\CHANGELOG.md" Link="CHANGELOG.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <None
@@ -71,12 +74,12 @@
     Condition="$(DownloadFFmpeg) AND !Exists('ffmpeg.exe') AND !Exists('ffmpeg')"
   >
     <Exec
-      Command="C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -File $(ProjectDir)/Download-FFmpeg.ps1 -Platform $(RuntimeIdentifier) -OutputPath $(ProjectDir)"
+      Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)Download-FFmpeg.ps1&quot; -Platform &quot;$(RuntimeIdentifier)&quot; -OutputPath &quot;$(ProjectDir).&quot;"
       LogStandardErrorAsError="true"
       Condition="'$(RuntimeIdentifier)' != ''"
     />
     <Exec
-      Command="C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -File $(ProjectDir)/Download-FFmpeg.ps1 -OutputPath $(ProjectDir)"
+      Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)Download-FFmpeg.ps1&quot; -OutputPath &quot;$(ProjectDir).&quot;"
       LogStandardErrorAsError="true"
       Condition="'$(RuntimeIdentifier)' == ''"
     />
@@ -92,7 +95,7 @@
   </Target>
   <Target Name="PublishMacOSBundle" AfterTargets="Publish" Condition="$(PublishMacOSBundle)">
     <Exec
-      Command="pwsh -ExecutionPolicy Bypass -File $(ProjectDir)/Publish-MacOSBundle.ps1 -PublishDirPath $(PublishDir) -IconsFilePath $(ProjectDir)/../favicon.icns -FullVersion $(Version) -ShortVersion $(AssemblyVersion)"
+      Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)Publish-MacOSBundle.ps1&quot; -PublishDirPath &quot;$(PublishDir).&quot; -IconsFilePath &quot;$(ProjectDir)../favicon.icns&quot; -FullVersion $(Version) -ShortVersion $(AssemblyVersion)"
       LogStandardErrorAsError="true"
     />
   </Target>

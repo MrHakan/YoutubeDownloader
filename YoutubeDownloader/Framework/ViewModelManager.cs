@@ -20,6 +20,13 @@ public class ViewModelManager(IServiceProvider services)
     public AuthSetupViewModel CreateAuthSetupViewModel() =>
         services.GetRequiredService<AuthSetupViewModel>();
 
+    public DownloadViewModel CreateDownloadViewModel(DownloadJob job)
+    {
+        var viewModel = services.GetRequiredService<DownloadViewModel>();
+        viewModel.Apply(job);
+        return viewModel;
+    }
+
     public DownloadViewModel CreateDownloadViewModel(
         IVideo video,
         VideoDownloadOption downloadOption,
@@ -98,7 +105,12 @@ public class ViewModelManager(IServiceProvider services)
     }
 
     public MessageBoxViewModel CreateMessageBoxViewModel(string title, string message) =>
-        CreateMessageBoxViewModel(title, message, "CLOSE", null);
+        CreateMessageBoxViewModel(
+            title,
+            message,
+            YoutubeDownloader.Services.Localization.Get("CLOSE"),
+            null
+        );
 
     public SettingsViewModel CreateSettingsViewModel() =>
         services.GetRequiredService<SettingsViewModel>();

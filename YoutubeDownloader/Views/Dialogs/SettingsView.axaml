@@ -3,7 +3,9 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:dialogs="clr-namespace:YoutubeDownloader.ViewModels.Dialogs"
-    Width="380"
+    xmlns:converters="clr-namespace:YoutubeDownloader.Converters"
+    Width="440"
+    MaxHeight="650"
     x:DataType="dialogs:SettingsViewModel">
     <Grid RowDefinitions="Auto,*,Auto">
         <TextBlock
@@ -11,7 +13,7 @@
             Margin="16"
             FontSize="19"
             FontWeight="Light"
-            Text="Settings" />
+            Text="{DynamicResource Ui74A883A037BC}" />
 
         <Border
             Grid.Row="1"
@@ -20,17 +22,37 @@
             BorderThickness="0,1">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <StackPanel Orientation="Vertical">
+                    <DockPanel Margin="16,8" LastChildFill="False">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource UiA4FE65264EF7}" />
+                        <ComboBox Width="150" DockPanel.Dock="Right" ItemsSource="{Binding AvailableLanguages}" SelectedItem="{Binding SelectedLanguage}" />
+                    </DockPanel>
+                    <StackPanel Margin="16,8" Spacing="8">
+                        <TextBlock Text="{DynamicResource UiD696A35BDD18}" />
+                        <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" />
+                        <TextBox Watermark="{DynamicResource UiDCD1D5223F73}" Text="{Binding ProfileName}" />
+                        <ComboBox ItemsSource="{Binding AvailableProfileContainers}" SelectedItem="{Binding ProfileContainer}" />
+                        <ComboBox ItemsSource="{Binding AvailableQualities}" SelectedItem="{Binding ProfileQuality}">
+                            <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static converters:VideoQualityPreferenceToStringConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <WrapPanel>
+                            <Button Margin="0,0,8,8" Content="{DynamicResource Ui0C8209E72EC8}" Command="{Binding SaveProfileCommand}"  Theme="{DynamicResource MaterialOutlineButton}" />
+                            <Button Margin="0,0,8,8" Content="{DynamicResource UiF964BE7D8A96}" Command="{Binding AddProfileCommand}"  Theme="{DynamicResource MaterialOutlineButton}" />
+                            <Button Content="{DynamicResource UiF52431BA6522}" Command="{Binding RemoveProfileCommand}"  Theme="{DynamicResource MaterialOutlineButton}" />
+                        </WrapPanel>
+                    </StackPanel>
                     <!--  Theme  -->
                     <DockPanel
                         Margin="16,8"
                         LastChildFill="False"
-                        ToolTip.Tip="Preferred user interface theme">
-                        <TextBlock DockPanel.Dock="Left" Text="Theme" />
+                        ToolTip.Tip="{DynamicResource Ui5B707B0905AF}">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource UiEFB52E7172B7}" />
                         <ComboBox
                             Width="150"
                             DockPanel.Dock="Right"
                             ItemsSource="{Binding AvailableThemes}"
-                            SelectedItem="{Binding Theme}" />
+                            SelectedItem="{Binding Theme}">
+                            <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static converters:LocalizedValueConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
                     </DockPanel>
 
                     <!--  Auto-updates  -->
@@ -41,16 +63,12 @@
                         LastChildFill="False">
                         <ToolTip.Tip>
                             <TextBlock>
-                                <Run Text="Perform automatic updates on every launch." />
+                                <Run Text="{DynamicResource Ui624E8183B2B0}" />
                                 <LineBreak />
-                                <Run FontWeight="SemiBold" Text="Warning:" />
-                                <Run Text="it's recommended to leave this option enabled to ensure that the app" />
-                                <LineBreak />
-                                <Run Text=" " />
-                                <Run Text="is compatible with the latest version of YouTube." />
+                                <Run Text="{DynamicResource Ui7F912925645A}" />
                             </TextBlock>
                         </ToolTip.Tip>
-                        <TextBlock DockPanel.Dock="Left" Text="Auto-update" />
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource UiBDF017F8015D}" />
                         <ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding IsAutoUpdateEnabled}" />
                     </DockPanel>
 
@@ -59,11 +77,11 @@
                         IsVisible="{OnPlatform False,
                                                Windows=True}"
                         LastChildFill="False"
-                        ToolTip.Tip="Save authentication cookies to a file so that they can be persisted between sessions">
+                        ToolTip.Tip="{DynamicResource UiD6B128F1F50A}">
                         <TextBlock
                             Margin="16,8"
                             DockPanel.Dock="Left"
-                            Text="Persist authentication" />
+                            Text="{DynamicResource Ui7D070C3C6A05}" />
                         <ToggleSwitch
                             Margin="16,8"
                             DockPanel.Dock="Right"
@@ -74,8 +92,8 @@
                     <DockPanel
                         Margin="16,8"
                         LastChildFill="False"
-                        ToolTip.Tip="Inject audio tracks in alternative languages (if available) into downloaded files">
-                        <TextBlock DockPanel.Dock="Left" Text="Inject alternative languages" />
+                        ToolTip.Tip="{DynamicResource Ui1C4B6B8E6FB4}">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Ui2174B6B5B576}" />
                         <ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding ShouldInjectLanguageSpecificAudioStreams}" />
                     </DockPanel>
 
@@ -83,8 +101,8 @@
                     <DockPanel
                         Margin="16,8"
                         LastChildFill="False"
-                        ToolTip.Tip="Inject subtitles (if available) into downloaded files">
-                        <TextBlock DockPanel.Dock="Left" Text="Inject subtitles" />
+                        ToolTip.Tip="{DynamicResource Ui7B51E47A053F}">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Ui5E081EA1640B}" />
                         <ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding ShouldInjectSubtitles}" />
                     </DockPanel>
 
@@ -92,8 +110,8 @@
                     <DockPanel
                         Margin="16,8"
                         LastChildFill="False"
-                        ToolTip.Tip="Inject media tags (if available) into downloaded files">
-                        <TextBlock DockPanel.Dock="Left" Text="Inject media tags" />
+                        ToolTip.Tip="{DynamicResource UiA4E6AD676783}">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Ui9E7D8D09AA4E}" />
                         <ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding ShouldInjectTags}" />
                     </DockPanel>
 
@@ -101,8 +119,8 @@
                     <DockPanel
                         Margin="16,8"
                         LastChildFill="False"
-                        ToolTip.Tip="When downloading multiple videos, skip those that already have matching files in the output directory">
-                        <TextBlock DockPanel.Dock="Left" Text="Skip existing files" />
+                        ToolTip.Tip="{DynamicResource Ui59D672E04F81}">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource UiBB2AE25167FB}" />
                         <ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding ShouldSkipExistingFiles}" />
                     </DockPanel>
 
@@ -110,29 +128,29 @@
                     <DockPanel Margin="16,8" LastChildFill="False">
                         <ToolTip.Tip>
                             <TextBlock>
-                                <Run Text="Template used for generating file names for downloaded videos." />
+                                <Run Text="{DynamicResource Ui75060440E7B3}" />
                                 <LineBreak />
                                 <LineBreak />
-                                <Run Text="Available tokens:" />
+                                <Run Text="{DynamicResource Ui8282165A14DA}" />
                                 <LineBreak />
                                 <Run Text=" " />
                                 <Run FontWeight="SemiBold" Text="$num" />
-                                <Run Text="— video's position in the list (if applicable)" />
+                                <Run Text="{DynamicResource UiC2F97E2B8BEE}" />
                                 <LineBreak />
                                 <Run Text=" " />
                                 <Run FontWeight="SemiBold" Text="$id" />
-                                <Run Text="— video ID" />
+                                <Run Text="{DynamicResource Ui2580D6E2D8AB}" />
                                 <LineBreak />
                                 <Run Text=" " />
                                 <Run FontWeight="SemiBold" Text="$title" />
-                                <Run Text="— video title" />
+                                <Run Text="{DynamicResource Ui1A249F6840CB}" />
                                 <LineBreak />
                                 <Run Text=" " />
                                 <Run FontWeight="SemiBold" Text="$author" />
-                                <Run Text="— video author" />
+                                <Run Text="{DynamicResource Ui79F337390CFA}" />
                             </TextBlock>
                         </ToolTip.Tip>
-                        <TextBlock DockPanel.Dock="Left" Text="File name template" />
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Ui9814864F3B5B}" />
                         <TextBox
                             Width="150"
                             Height="20"
@@ -146,8 +164,8 @@
                     <DockPanel
                         Margin="16,8"
                         LastChildFill="False"
-                        ToolTip.Tip="How many downloads can be active at the same time">
-                        <TextBlock DockPanel.Dock="Left" Text="Parallel limit" />
+                        ToolTip.Tip="{DynamicResource Ui58713D8C5826}">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Ui9A9162E581B7}" />
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                             <TextBlock Margin="10,0" Text="{Binding ParallelLimit}" />
                             <Slider
@@ -169,7 +187,7 @@
             Margin="16"
             HorizontalAlignment="Stretch"
             Command="{Binding CloseCommand}"
-            Content="CLOSE"
+            Content="{DynamicResource UiF13A1ED0CF3C}"
             IsCancel="True"
             IsDefault="True"
             Theme="{DynamicResource MaterialOutlineButton}" />

@@ -21,7 +21,7 @@
             TextTrimming="CharacterEllipsis">
             <TextBlock.ContextMenu>
                 <ContextMenu>
-                    <MenuItem Command="{Binding CopyTitleCommand}" Header="Copy" />
+                    <MenuItem Command="{Binding CopyTitleCommand}" Header="{DynamicResource UiE21F935F11D7}" />
                 </ContextMenu>
             </TextBlock.ContextMenu>
         </TextBlock>
@@ -31,8 +31,15 @@
             Grid.Row="1"
             BorderBrush="{DynamicResource MaterialDividerBrush}"
             BorderThickness="0,1">
-            <ListBox
-                ItemsSource="{Binding AvailableVideos}"
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="12" Spacing="8">
+                    <TextBox Watermark="{DynamicResource UiC7661DA99C41}" Text="{Binding Filter}" />
+                    <TextBlock Text="{Binding SelectionSummary}" TextWrapping="Wrap" />
+                    <TextBlock Text="{DynamicResource UiC5698B3151F6}" TextWrapping="Wrap" FontSize="12" />
+                    <Button Content="{DynamicResource Ui70F58736B63E}" Command="{Binding SelectVisibleCommand}"  Theme="{DynamicResource MaterialOutlineButton}" />
+                </StackPanel>
+            <ListBox MaxHeight="320"
+                ItemsSource="{Binding FilteredVideos}"
                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                 SelectedItems="{Binding SelectedVideos}"
                 SelectionMode="Multiple,Toggle">
@@ -90,7 +97,7 @@
                                         <TextBlock
                                             Margin="3,0,0,0"
                                             FontWeight="Light"
-                                            Text="{Binding Duration, TargetNullValue=Live}"
+                                            Text="{Binding Duration, TargetNullValue={DynamicResource UiB64AC05F17E6}}"
                                             TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
                                 </StackPanel>
@@ -108,6 +115,7 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
+            </DockPanel>
         </Border>
 
         <!--  Preferences  -->
@@ -118,7 +126,7 @@
             <!--  Container preference  -->
             <ComboBox
                 Margin="0,0,8,0"
-                materialAssists:ComboBoxAssist.Label="Container"
+                materialAssists:ComboBoxAssist.Label="{DynamicResource Ui0C7823E8C759}"
                 ItemsSource="{Binding AvailableContainers}"
                 SelectedItem="{Binding SelectedContainer}"
                 Theme="{DynamicResource MaterialFilledComboBox}" />
@@ -126,7 +134,7 @@
             <!--  Video quality preference  -->
             <ComboBox
                 Margin="8,0,0,0"
-                materialAssists:ComboBoxAssist.Label="Video quality"
+                materialAssists:ComboBoxAssist.Label="{DynamicResource UiB8C237EB0D10}"
                 IsEnabled="{Binding !SelectedContainer.IsAudioOnly}"
                 ItemsSource="{Binding AvailableVideoQualityPreferences}"
                 SelectedItem="{Binding SelectedVideoQualityPreference}"
@@ -153,7 +161,7 @@
                 Theme="{DynamicResource MaterialOutlineButton}">
                 <Button.Content>
                     <TextBlock>
-                        <Run Text="DOWNLOAD" />
+                        <Run Text="{DynamicResource UiADAA62FA4EDC}" />
                         <Run Text="(" /><Run Text="{Binding SelectedVideos.Count, FallbackValue=0, Mode=OneWay}" /><Run Text=")" />
                     </TextBlock>
                 </Button.Content>
@@ -163,7 +171,7 @@
             <Button
                 Margin="8,0,0,0"
                 Command="{Binding CloseCommand}"
-                Content="CANCEL"
+                Content="{DynamicResource UiAD8D698573FC}"
                 IsCancel="True"
                 Theme="{DynamicResource MaterialOutlineButton}" />
         </StackPanel>

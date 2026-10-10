@@ -107,7 +107,7 @@ public class QueryResolver(IReadOnlyList<Cookie>? initialCookies = null) : IDisp
         return new QueryResult(QueryResultKind.Search, $"Search: {query}", videos);
     }
 
-    public async Task<QueryResult> ResolveAsync(
+    private async Task<QueryResult> ResolveCoreAsync(
         string query,
         CancellationToken cancellationToken = default
     )
@@ -116,6 +116,9 @@ public class QueryResolver(IReadOnlyList<Cookie>? initialCookies = null) : IDisp
         if (query.StartsWith('?'))
             return await ResolveSearchAsync(query[1..], cancellationToken);
 
+        if (IsBareVideoId(query))
+            return (await TryResolveVideoAsync(query, cancellationToken))!;
+
         return await TryResolvePlaylistAsync(query, cancellationToken)
             ?? await TryResolveVideoAsync(query, cancellationToken)
             ?? await TryResolveChannelAsync(query, cancellationToken)
@@ -123,4 +126,24 @@ public class QueryResolver(IReadOnlyList<Cookie>? initialCookies = null) : IDisp
     }
 
     public void Dispose() => _youtube.Dispose();
+
+    public static bool IsBareVideoId(string query) =>
+        query.Length == 11 && VideoId.TryParse(query) is not null;
+
+    public async Task<QueryResult> ResolveAsync(
+        string query,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(2));
+        try
+        {
+            return await ResolveCoreAsync(query, timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("YouTube query timed out.");
+        }
+    }
 }
