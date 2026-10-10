@@ -11,7 +11,9 @@ public static class PathExtensions
         var buffer = new StringBuilder(path.Length);
 
         foreach (var c in path)
-            buffer.Append(!Path.GetInvalidFileNameChars().Contains(c) ? c : '_');
+            buffer.Append(
+                c is not ('/' or '\\') && !Path.GetInvalidFileNameChars().Contains(c) ? c : '_'
+            );
 
         return buffer.ToString();
     }

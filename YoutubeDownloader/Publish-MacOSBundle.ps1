@@ -39,17 +39,17 @@ try {
 <plist version="1.0">
   <dict>
     <key>CFBundleDisplayName</key>
-    <string>YoutubeDownloader</string>
+    <string>MrHakan YoutubeDownloader</string>
     <key>CFBundleName</key>
-    <string>YoutubeDownloader</string>
+    <string>MrHakan YoutubeDownloader</string>
     <key>CFBundleExecutable</key>
     <string>YoutubeDownloader</string>
     <key>NSHumanReadableCopyright</key>
     <string>© Oleksii Holub</string>
     <key>CFBundleIdentifier</key>
-    <string>me.Tyrrrz.YoutubeDownloader</string>
+    <string>io.github.MrHakan.YoutubeDownloader</string>
     <key>CFBundleSpokenName</key>
-    <string>YoutubeDownloader</string>
+    <string>MrHakan YoutubeDownloader</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIconName</key>

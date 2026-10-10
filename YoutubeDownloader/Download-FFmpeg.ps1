@@ -29,7 +29,7 @@ try {
         [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $temporaryPath)
     } finally { $archive.Dispose() }
     if (-not $IsWindows) {
-        & chmod +x -- $temporaryPath
+        & chmod +x $temporaryPath
         if ($LASTEXITCODE -ne 0) { throw 'Could not set FFmpeg executable permissions' }
     }
     [IO.File]::Move($temporaryPath, $OutputPath, $true)
