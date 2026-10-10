@@ -142,6 +142,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout release notes
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -149,7 +152,8 @@ jobs:
           gh release create ${{ github.ref_name }}
           --repo ${{ github.event.repository.full_name }}
           --title ${{ github.ref_name }}
-          --generate-notes
+          --notes-file CHANGELOG.md
+          --draft
           --verify-tag
 
   deploy:
@@ -208,13 +212,31 @@ jobs:
       - name: Upload release asset
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sha256sum ${{ matrix.artifact-name-base }}.${{ matrix.rid }}.zip > ${{ matrix.artifact-name-base }}.${{ matrix.rid }}.zip.sha256
+          gh release upload ${{ github.ref_name }} \
+            ${{ matrix.artifact-name-base }}.${{ matrix.rid }}.zip \
+            ${{ matrix.artifact-name-base }}.${{ matrix.rid }}.zip.sha256 \
+            --repo ${{ github.event.repository.full_name }}
+
+  publish:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Publish completed release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          gh release upload ${{ github.ref_name }}
-          ${{ matrix.artifact-name-base }}.${{ matrix.rid }}.zip
+          gh release edit ${{ github.ref_name }}
           --repo ${{ github.event.repository.full_name }}
+          --draft=false
+          --latest
 
   notify:
-    needs: deploy
+    needs: publish
     if: ${{ github.repository == 'MrHakan/YoutubeDownloader' && vars.ENABLE_DISCORD_NOTIFICATIONS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10

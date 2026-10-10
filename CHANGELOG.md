@@ -9,6 +9,8 @@
 - Kullanıcı dizininde ayarlar ve Windows kullanıcı hesabıyla korunan oturum bilgileri.
 - Aktarım, altyazı, dönüştürme ve etiketleme aşamaları; aktarım hızı ve kalan süre.
 - Yalnızca özel depodan, kurulum öncesi onayla güncelleme.
+- Linux'ta dosya adı temizleme ve macOS'ta paketleme/FFmpeg izin uyumluluğu.
+- Testler ve paket kontrolleri geçen sürümlerin, SHA-256 özetleriyle GitHub'da yayınlanması.
 
 ## 1.15.4
 
